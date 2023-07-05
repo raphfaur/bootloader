@@ -2,7 +2,6 @@ use core;
 use core::arch::asm;
 use core::mem::transmute;
 use core::ptr::write_volatile;
-use crate::panic;
 
 pub struct Gdtr {
     size : u16,
