@@ -1,5 +1,5 @@
 MEMORY {
-    BOOT : ORIGIN = 0x00 , LENGTH = 4096
+    BOOT : ORIGIN = 0x00 , LENGTH = 32768
 }
 
 ENTRY(_start)

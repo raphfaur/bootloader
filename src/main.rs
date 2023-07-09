@@ -64,8 +64,8 @@ fn main(){
         println!("First stage was successfully built")
     }
 
-    // Cleaning MBR
-    println!("Cleaning MBR...");
+    // Cleaning first stage
+    println!("Cleaning first stage...");
     let output = Command::new("x86_64-elf-objcopy")
         .current_dir(&first_stage_path)
         .arg("-O")
@@ -78,9 +78,23 @@ fn main(){
         io::stdout().write_all(&output.stdout).unwrap();
         io::stderr().write_all(&output.stderr).unwrap();
     } else {
-        println!("MBR was successfully cleaned")
+        println!("First stage was successfully cleaned")
     }
 
+    merge_stage(&build_path);
+    merge_ext(&build_path);
+
+    // Rename to "boot"
+    let output = Command::new("mv")
+        .current_dir(&build_path)
+        .arg("mbr.bin")
+        .arg("boot")
+        .output()
+        .expect("Failed to rename");
+
+}
+
+fn merge_stage(build_path : &PathBuf) {
     // Merge files
     let output = Command::new("dd")
         .current_dir(&build_path)
@@ -97,28 +111,24 @@ fn main(){
         println!("Added first_stage at end of MBR")
     }
 
-    let output = Command::new("mv")
+}
+
+fn merge_ext(build_path : &PathBuf) {
+    println!("Merging ext4 partition");
+    // Merge ext partition
+    let output = Command::new("dd")
         .current_dir(&build_path)
-        .arg("mbr.bin")
-        .arg("boot")
+        .arg("if=ext4_part")
+        .arg("of=mbr.bin")
+        .arg("seek=64")
         .output()
-        .expect("Failed to rename");
+        .expect("Could not run dd");
 
-    println!("Done, booting");
-
-    let output = Command::new("qemu-system-i386")
-        .current_dir(&build_path)
-        .arg("-monitor")
-        .arg("stdio")
-        .arg("boot")
-        .spawn()
-        .expect("Falied to launch Qemu");
-
-
-
-
-
-
-
+    if !output.status.success() {
+        io::stdout().write_all(&output.stdout).unwrap();
+        io::stderr().write_all(&output.stderr).unwrap();
+    } else {
+        println!("Merged ext4_part")
+    }
 
 }
