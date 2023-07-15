@@ -64,11 +64,13 @@ impl AddressPacket {
 
         unsafe {
             asm!(
+            "push ebx",
             "mov ah, 0x42",
             "mov si, cx",
             "xor bx, bx",
             "mov ds, bx",
             "int 0x13",
+            "pop ebx",
             in("dl") drive_number,
             in("cx") dap_addr,
             out("ah") result

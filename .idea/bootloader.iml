@@ -8,6 +8,7 @@
       <excludeFolder url="file://$MODULE_DIR$/src/first_stage/target" />
       <excludeFolder url="file://$MODULE_DIR$/src/mbr/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/src/builds" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

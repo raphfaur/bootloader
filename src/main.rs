@@ -35,6 +35,7 @@ fn main(){
         .current_dir(&mbr_path)
         .arg("-O")
         .arg("binary")
+        .arg("--binary-architecture=i386:x86-64")
         .arg("target/x86_16bits_mbr/release/mbr")
         .arg(env::current_dir().unwrap().join("builds").join("mbr.bin"))
         .output()
@@ -120,7 +121,7 @@ fn merge_ext(build_path : &PathBuf) {
         .current_dir(&build_path)
         .arg("if=ext4_part")
         .arg("of=mbr.bin")
-        .arg("seek=64")
+        .arg("seek=51")
         .output()
         .expect("Could not run dd");
 

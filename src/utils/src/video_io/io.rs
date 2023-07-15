@@ -30,18 +30,20 @@ pub fn clear_screen() {
     }
 }
 
+
 pub fn cprint_info(str: &[u8]) {
     for ch in str {
         __bios_printc(*ch);
     }
 }
 
+
 pub fn __bios_print(args: fmt::Arguments<'_>) {
     let mut writer = Writer{};
     writer.write_fmt(args).unwrap();
 }
 
-#[inline(never)]
+
 pub fn __bios_printc(ch: u8) {
     if ch != 0x00 {
         unsafe {
