@@ -1,6 +1,4 @@
 #![no_std]
-
-
 use core::mem::transmute;
 use core::ptr::{read_volatile, write_volatile};
 use crate::disk::disk::AddressPacket;
@@ -104,8 +102,6 @@ pub struct Superblock {
     s_checksum : u32
 }
 
-
-
 impl Superblock {
     pub fn list_root (&self) {
 
@@ -169,7 +165,6 @@ impl Superblock {
     }
 }
 
-
 #[repr(C, packed)]
 struct BlockGroupDescriptor32 {
     bg_block_bitmap : u32,
@@ -191,7 +186,7 @@ struct BlockGroupDescriptor32 {
 pub struct Inode {
     pub i_mode : u16,
     i_uid : u16,
-    i_size : i32,
+    i_size : u32,
     i_atime : u32,
     i_ctime : u32,
     i_mtime : u32,
@@ -234,6 +229,7 @@ struct Ext4Extent {
     ee_start_hi : u16,
     ee_start_lo : u32
 }
+
 #[repr(C, packed)]
 struct Ext4ExtentIdx {
     ei_block : u32,
@@ -244,14 +240,15 @@ struct Ext4ExtentIdx {
 
 
 impl Inode {
-
+    // Returns true is this inode uses an extent tree
     pub fn uses_extent_tree(&self) -> bool {
         return self.i_flags == 0x80000
     }
 
+    // Get block number of the nth data block.
     pub fn get_nth_data_block(&self, block_size : u32, n : u32, partition : &Ext4Partition) -> u64 {
-        let q = self.i_size / block_size as i32;
-        let r = self.i_size % block_size as i32;
+        let q = self.i_size as i32 / block_size as i32;
+        let r = self.i_size as i32 % block_size as i32;
         if ! ( (n <= q as u32) | ( ( n == (q as u32 + 1)) & (r > 0) ))  {
             return 0;
         }
@@ -264,15 +261,14 @@ impl Inode {
         }
     }
 
-
-    #[inline(never)]
+    // Get block number of the nth data block, considering this inode uses an extent tree structure
     pub fn get_nth_data_block_extent(&self, block_size : u32, n : u32, partition : &Ext4Partition) -> u64 {
         let mem_offset = self as *const Inode as u32 + 0x28;
         debug!(mem_offset);
         return self.explore_next_layer(mem_offset , n , block_size, partition);
     }
 
-    #[inline(always)]
+    // Explore next layer, used by get_nth_data_block_extent
     pub fn explore_next_layer(&self, mem_offset : u32, n : u32, block_size : u32, partition : &Ext4Partition) -> u64 {
         let header_address = mem_offset as *const Ext4ExtentHeader;
         let header : &Ext4ExtentHeader;
@@ -304,7 +300,6 @@ impl Inode {
                 };
                 if extent.ee_block + len as u32 >= n {
                     let a = (extent.ee_start_lo as u64 + ((extent.ee_start_hi as u64) << 32)) + (n - extent.ee_block) as u64;
-                    debug!(a);
                     // Return address of n-th block
                     return a
                 }
@@ -328,49 +323,8 @@ impl Inode {
 
     }
 
-    pub fn get_path(&self, offset : u64, s_log_block_size : u32) -> Result<([u32; 4], (usize, u64)), u8> {
-        if offset > self.i_size as u64 {
-            // Offset outside file : 3
-            return Err(3);
-        }
-        if s_log_block_size as u64 * 12 > offset {
-            return self.get_path_recursive(offset - 12 * s_log_block_size as u64, 1, s_log_block_size);
-        } else {
-            let mut path = [0u32;4];
-            path[0] = (offset / s_log_block_size as u64) as u32;
-            return Ok((path, (0, offset % s_log_block_size as u64)))
-        }
-    }
-
-    pub fn get_path_recursive(&self, mut offset : u64, depth : usize, s_log_block_size : u32) -> Result<([u32;4], (usize,u64)), u8> {
-        if depth > 3 {
-            // Max Depth reached : 1
-            return Err(1)
-        }
-        // Compute the number of bytes contained
-        let bytes_count = (s_log_block_size / 32).pow(depth as u32) * s_log_block_size;
-        if offset > bytes_count as u64 {
-            return self.get_path_recursive(offset - bytes_count as u64, depth + 1, s_log_block_size)
-        } else {
-            let mut path = [0u32; 4];
-            let mut i = 0;
-            while offset > s_log_block_size as u64 {
-                path[i] = (offset / (s_log_block_size as u64 / 32).pow((depth - i) as u32) as u64) as u32;
-                offset = offset - offset % (s_log_block_size as u64 / 32).pow((depth - i) as u32) as u64;
-                i += 1;
-                if i > 2 {
-                    // Error in recursivity : 2
-                    return Err(2);
-                }
-            };
-            return Ok((path, (depth, offset as u64)))
-        }
-    }
-
-    #[inline(never)]
     // Parse an inode as a directory, using at most 2 * block_size of memory
     pub fn parse_as_directory(&self, offset : u32, part : &Ext4Partition, block_size : u32) {
-        print_str("Parsing");
         let mut current_block = 0;
         let first_block = self.get_nth_data_block_extent(block_size, current_block, part);
         debug!(first_block);
@@ -410,7 +364,7 @@ impl Inode {
             let type_flag = unsafe {
                 read_volatile(parser as *const u8)
             };
-
+            debug!(inode);
             match type_flag {
                 0x1 => print_str("(File)       "),
                 0x2 => print_str("(Directory)  "),
@@ -432,7 +386,7 @@ impl Inode {
             inode = unsafe {
                 read_volatile(parser as *const u32)
             };
-            debug!(inode);
+
 
             // If reset flag is set, return to offset for the next block
             if flag_reset {
@@ -452,129 +406,194 @@ impl Inode {
         }
     }
 
-    pub fn get_address(&self, offset : u64, s_log_block_size : u32) -> Result<u64, u8>{
-        match self.get_path(offset, s_log_block_size) {
-            Err(e) => Err(e),
-            Ok((path, (depth, off))) => {
-                match depth {
-                    0 => Ok((self.i_block[path[0] as usize] as u64 + off) as u64),
-                    _ => Ok(0)
-                }
+    // Show content of a file using at most 1 blok_size space in memory
+    pub fn read_as_file(&self, offset : u32, part : &Ext4Partition, block_size : u32, n : u32) -> u8{
+        let mut total_byte = 0u32;
+        let mut byte = 0u32;
+        let mut current_block = 0;
+        let mut next_block = self.get_nth_data_block(block_size, current_block, part);
+        let result = part.read((next_block as u32) * block_size, block_size, offset);
+        match result {
+            Err(_) => print_str("Error loading first block"),
+            Ok(_) => print_str("Loaded first block")
+        }
+        while total_byte < n {
+            let char = unsafe { read_volatile((byte + offset) as *const u8) };
+            printc(char);
+            if char == 0xa {
+                printc(13);
             }
-        }
-    }
-}
-
-#[inline(never)]
-pub fn parse_directory(offset : u32) {
-    let mut parser = offset;
-    let mut inode = unsafe {
-        read_volatile(offset as *const u32)
-    };
-    // The end is defined by a 0x00 inode pointer
-    while inode != 0x00 {
-        let mut begin = parser;
-        parser += 4;
-        let rec_len = unsafe {
-            read_volatile(parser as *const u16)
-        };
-        parser += 2;
-        let name_len = unsafe {
-            read_volatile(parser as *const u8)
-        };
-        parser += 1;
-        let type_flag = unsafe {
-            read_volatile(parser as *const u8)
-        };
-
-        match type_flag {
-            0x1 => print_str("(File)       "),
-            0x2 => print_str("(Directory)  "),
-            _ =>   print_str("             ")
-
-        }
-        parser += 1;
-        for i in 0..name_len {
-            let char = unsafe {
-                read_volatile(parser as *const u8)
-            };
-            parser +=1;
-            printc(char);
-        }
-        printc(0x0a);
-        printc(0x0d);
-        parser = begin + rec_len as u32;
-
-        inode = unsafe {
-            read_volatile(parser as *const u32)
-        };
-    }
-}
-
-pub fn search_directory(offset : u32, file_type : u8, name : &str) -> u32{
-    let mut parser = offset;
-    let name = name.as_bytes();
-    let mut inode = unsafe {
-        read_volatile(offset as *const u32)
-    };
-    // The end is defined by a 0x00 inode pointer
-    while inode != 0x00 {
-        let mut begin = parser;
-        parser += 4;
-        let rec_len = unsafe {
-            read_volatile(parser as *const u16)
-        };
-        parser += 2;
-        let name_len = unsafe {
-            read_volatile(parser as *const u8)
-        };
-        parser += 1;
-        let type_flag = unsafe {
-            read_volatile(parser as *const u8)
-        };
-
-        let research_size = name.len();
-
-        parser += 1;
-        let mut same  =0;
-        for i in 0..name_len {
-            let char = unsafe {
-                read_volatile(parser as *const u8)
-            };
-            printc(char);
-            if i < research_size as u8 {
-                if char == name[i as usize] {
-                    same += 1;
-                    parser +=1;
-                } else {
-                    parser +=1;
+            if (byte % block_size == 0) & (byte != 0){
+                current_block += 1;
+                next_block = self.get_nth_data_block(block_size, current_block, part);
+                let result = part.read((next_block as u32) * block_size, block_size, offset);
+                match result {
+                    Err(_) => return 1,
+                    Ok(_) => ()
                 }
+                byte = 0;
             } else {
-                parser += 1
+                byte +=1;
+            }
+            total_byte += 1;
+        }
+        return  0
+    }
+
+    // Search in an inode considered as a directory, using at most 2 * block_size of memory
+    pub fn search(&self, offset : u32, part : &Ext4Partition, block_size : u32, file_type : u8, name : &str) -> u32 {
+        print_str("Parsing");
+        let name = name.as_bytes();
+        let mut current_block = 0;
+        let first_block = self.get_nth_data_block_extent(block_size, current_block, part);
+        debug!(first_block);
+        let result = part.read((first_block as u32) * block_size, block_size, offset);
+        match result {
+            Err(_) => print_str("Error loading first block"),
+            Ok(_) => print_str("Loaded first block")
+        }
+        let mut parser = offset;
+        let mut inode = unsafe {
+            read_volatile(offset as *const u32)
+        };
+        // The end is defined by a 0x00 inode pointer
+        while inode != 0x00 {
+            let mut flag_reset = false;
+            let mut begin = parser;
+            parser += 4;
+
+            let rec_len = unsafe {
+                read_volatile(parser as *const u16)
+            };
+
+            // Test if we need to load the next block
+            if rec_len as u32 + parser - offset >= block_size {
+                let next_block = self.get_nth_data_block_extent(block_size, current_block + 1, part);
+                debug!(next_block);
+                let result = part.read((next_block as u32) * block_size, block_size, offset + block_size);
+                match result {
+                    Err(_) => print_str("Error loading next block"),
+                    Ok(_) => print_str("Loaded next block")
+                }
+                flag_reset = true;
+            }
+            parser += 2;
+            let name_len = unsafe {
+                read_volatile(parser as *const u8)
+            };
+            parser += 1;
+            let type_flag = unsafe {
+                read_volatile(parser as *const u8)
+            };
+
+            let research_size = name.len();
+
+            parser += 1;
+
+            let mut same  =0;
+            for i in 0..name_len {
+                let char = unsafe {
+                    read_volatile(parser as *const u8)
+                };
+                printc(char);
+                if i < research_size as u8 {
+                    if char == name[i as usize] {
+                        same += 1;
+                        parser +=1;
+                    } else {
+                        parser +=1;
+                    }
+                } else {
+                    parser += 1
+                }
             }
 
+            parser = begin + rec_len as u32;
+
+            if same != name.len() as u32 {
+
+            } else if type_flag == file_type {
+                return inode
+            }
+
+            inode = unsafe {
+                read_volatile(parser as *const u32)
+            };
+
+
+
+
+
+            // If reset flag is set, return to offset for the next block
+            if flag_reset {
+                let next_block = self.get_nth_data_block_extent(block_size, current_block + 1, part);
+                let result = part.read((next_block as u32) * block_size, block_size, offset + block_size);
+                match result {
+                    Err(_) => print_str("Error loading next block"),
+                    Ok(_) => print_str("Loaded next block")
+                }
+                debug!(parser - offset);
+                debug!(rec_len);
+                parser = parser % block_size + offset;
+                current_block += 1;
+                debug!(current_block);
+            }
 
         }
-        parser = begin + rec_len as u32;
-        debug!(same);
-        debug!(name.len());
-        if same != name.len() as u32 {
-            print_str("Continuing");
-            continue
-        }
 
-        inode = unsafe {
-            read_volatile(parser as *const u32)
-        };
-        debug!(inode);
-        debug!(type_flag);
-        debug!(file_type);
-        if type_flag == file_type {
-            return inode
+        return 0
+    }
+
+    // Get block number of the nth data block, considering this inode uses a direct/indirect block addressing system
+    pub fn get_nth_data_block_basic(&self, n :u32, offset : u32, block_size : u32, partition : &Ext4Partition) -> u32 {
+        if n > 12 {
+            print_str("Beginning recursive");
+            let (path, depth) = self.get_path_recursive(n - 12, 1, block_size);
+            let initial_block = self.i_block[(11 + depth) as usize];
+            partition.read(initial_block * block_size, block_size, offset);
+            let mut next_block_nb= 0u32 ;
+            for step in path {
+                if step != 0 {
+                    next_block_nb = unsafe { read_volatile((offset + step * 4) as *const u32)};
+                    partition.read(next_block_nb * block_size, block_size, offset);
+                } else {
+                    return next_block_nb
+                }
+            }
+            return 0
+        } else {
+            return self.i_block[n as usize]
         }
     }
 
-    return 0
+    pub fn get_path_recursive(&self, mut n : u32, depth : usize, block_size : u32) -> ([u32;4], u8) {
+        //if depth > 3 {
+            // Max Depth reached : 1
+          //  return Err(1)
+        //}
+        // Compute the number of bytes contained
+        let address_per_block = (block_size / 4);
+        let block_count = address_per_block.pow(depth as u32);
+
+        // Check if we have to go to the next stage
+        if n > block_count{
+            return self.get_path_recursive(n - block_count, depth + 1, block_size);
+        } else {
+            let mut path = [0u32; 4];
+            let mut i = 0;
+            while n > block_count {
+                path[i] = (n / (address_per_block).pow((depth - i - 1) as u32)) as u32;
+                n = n % (address_per_block).pow((depth - i - 1) as u32);
+                i += 1;
+                //if i > 2 {
+                    // Error in recursivity : 2
+                  //  return Err(2);
+                //}
+            };
+            return (path, depth as u8)
+        }
+    }
+
 }
 
 pub struct Ext4Partition {
@@ -588,24 +607,17 @@ impl Ext4Partition {
         let offset = (offset/512 + self.offset) as u64;
         let address = AddressPacket::new((length / 512) as u16 , buffer, offset);
         let mut buffer = [0u8; 30];
-
-        debug!(offset);
-
         return address.disk_read(self.drive);
     }
 }
 
-
-enum EXT2_FT {
-
-}
 
 #[repr(C, packed)]
 struct LinkedDirectoryEntry {
     inode : u16,
     rec_len : u16,
     name_len : u8,
-    file_type : EXT2_FT,
+    file_type : u8,
     name : u32
 }
 
@@ -621,6 +633,8 @@ impl Debug for &Inode {
         print_str(uid.numtoa_str(16, &mut buffer));
         printc(10);
         printc(13);
+
+        debug!(self.i_flags);
         let mut blocks = [0u32; 15];
         print_str("Blocks : ");
         for i in 0..15 {
