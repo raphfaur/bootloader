@@ -2,11 +2,21 @@
 #![no_main]
 use core::arch::asm;
 use core::ptr::write_volatile;
+use crate::debug;
 
 
 pub fn print_str(str : &str) {
     for char in str.as_bytes(){
         printc(*char);
+    }
+}
+
+pub fn print_slice(str : &[u8]) {
+    for char in str{
+        if char != &0 {
+            printc(*char);
+        }
+
     }
 }
 
@@ -21,6 +31,19 @@ pub fn printc(i : u8) {
         in(reg_byte) i
         )
     }
+}
+
+pub fn wait_input() -> u8{
+    let al : u8;
+    unsafe {
+        asm!(
+        "mov ah, 0x00",
+        "int 0x16",
+        "mov {}, al",
+        out(reg_byte) al
+        )
+    }
+    return al
 }
 
 pub fn print(str : &[u8]) {

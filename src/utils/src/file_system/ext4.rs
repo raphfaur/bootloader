@@ -121,16 +121,20 @@ impl Superblock {
     pub fn get_inode(&mut self, inode_nb : u32, partition : &Ext4Partition) -> &Inode {
         let mut buffer = [0u8; 20];
         let block_group = (inode_nb -1) / self.s_inodes_per_group;
+        debug!(block_group);
         let index = (inode_nb - 1) % self.s_inodes_per_group;
+        debug!(index);
         let block_size =  2u32.pow((10 + self.s_log_block_size)) as u32;
-        match partition.read( block_size + 64 * block_group, 4096, 0x1500) {
+        let grp_descriptor_addr = block_size + 64 * block_group;
+        match partition.read( grp_descriptor_addr, 4096, 0x1500) {
             Ok(_) => print_str("Loaded"),
             _ => print_str("Error")
         }
         printc(10);
         printc(13);
 
-        let grp_descriptor_addr = 0x1500 as *mut BlockGroupDescriptor32;
+        let grp_descriptor_addr = (0x1500 + grp_descriptor_addr % 512) as *mut BlockGroupDescriptor32;
+        debug!(grp_descriptor_addr as u32);
         let grp_desc : &BlockGroupDescriptor32;
         grp_desc = unsafe {
             transmute(grp_descriptor_addr)
@@ -327,12 +331,14 @@ impl Inode {
     pub fn parse_as_directory(&self, offset : u32, part : &Ext4Partition, block_size : u32) {
         let mut current_block = 0;
         let first_block = self.get_nth_data_block_extent(block_size, current_block, part);
-        debug!(first_block);
+        //debug!(first_block);
+
         let result = part.read((first_block as u32) * block_size, block_size, offset);
         match result {
             Err(_) => print_str("Error loading first block"),
             Ok(_) => print_str("Loaded first block")
         }
+        clear();
         let mut parser = offset;
         let mut inode = unsafe {
             read_volatile(offset as *const u32)
@@ -364,7 +370,7 @@ impl Inode {
             let type_flag = unsafe {
                 read_volatile(parser as *const u8)
             };
-            debug!(inode);
+            //debug!(inode);
             match type_flag {
                 0x1 => print_str("(File)       "),
                 0x2 => print_str("(Directory)  "),
@@ -403,6 +409,28 @@ impl Inode {
                 debug!(current_block);
             }
 
+        }
+    }
+
+    // Copy n block of file to a specific offset. This is risky as this function will overwrite everything it can.
+    pub fn block_copy(&self, offset : u32, part : &Ext4Partition, block_size : u32, n : u32) {
+        {
+            let mut current_block = 0;
+            let mut next_block = self.get_nth_data_block(block_size, current_block, part);
+            let result = part.read((next_block as u32) * block_size, block_size, offset);
+            match result {
+                Err(_) => print_str("Error loading first block"),
+                Ok(_) => print_str("Loaded first block")
+            }
+            while current_block < n {
+                current_block += 1;
+                next_block = self.get_nth_data_block(block_size, current_block, part);
+                let result = part.read((next_block as u32) * block_size, block_size, offset + current_block * block_size);
+                match result {
+                    Err(_) => {debug!(current_block);},
+                    Ok(_) => {}
+                }
+            }
         }
     }
 
@@ -633,7 +661,7 @@ impl Debug for &Inode {
         print_str(uid.numtoa_str(16, &mut buffer));
         printc(10);
         printc(13);
-
+        debug!(self.i_size);
         debug!(self.i_flags);
         let mut blocks = [0u32; 15];
         print_str("Blocks : ");
