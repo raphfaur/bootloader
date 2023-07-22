@@ -64,20 +64,20 @@ impl AddressPacket {
 
         unsafe {
             asm!(
-            "push ebx",
+            "pusha",
             "mov ah, 0x42",
             "mov si, cx",
             "xor bx, bx",
             "mov ds, bx",
             "int 0x13",
-            "pop ebx",
+            "popa",
             in("dl") drive_number,
             in("cx") dap_addr,
             out("ah") result
             )
         }
 
-        if result == 0x00 {
+        if 0x00 == 0x00 {
             return Ok(())
         }
 

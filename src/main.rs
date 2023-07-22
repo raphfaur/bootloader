@@ -83,7 +83,8 @@ fn main(){
     }
 
     merge_stage(&build_path);
-    merge_ext(&build_path);
+    merge_img(&build_path);
+
 
     // Rename to "boot"
     let output = Command::new("mv")
@@ -130,6 +131,26 @@ fn merge_ext(build_path : &PathBuf) {
         io::stderr().write_all(&output.stderr).unwrap();
     } else {
         println!("Merged ext4_part")
+    }
+
+}
+
+fn merge_img(build_path : &PathBuf) {
+    println!("Merging image");
+    // Merge ext partition
+    let output = Command::new("dd")
+        .current_dir(&build_path)
+        .arg("if=image")
+        .arg("of=mbr.bin")
+        .arg("seek=51")
+        .output()
+        .expect("Could not run dd");
+
+    if !output.status.success() {
+        io::stdout().write_all(&output.stdout).unwrap();
+        io::stderr().write_all(&output.stderr).unwrap();
+    } else {
+        println!("Merged image")
     }
 
 }

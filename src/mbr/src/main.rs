@@ -10,7 +10,7 @@ use core::panic::PanicInfo;
 use core::ptr::write_volatile;
 use utils::disk::disk::AddressPacket;
 use utils::file_system::ext4::Superblock;
-use utils::gui::gui::{clear, print, print_str, printc};
+use utils::gui::gui::{clear, print, print_str, printc, write};
 use utils::partitions::mbr_partition_table::PartitionTable;
 use utils::print;
 use utils::video_io::io::{__bios_print, __bios_printc, cprint_info};

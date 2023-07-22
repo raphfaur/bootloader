@@ -434,7 +434,7 @@ impl Inode {
         }
     }
 
-    // Show content of a file using at most 1 blok_size space in memory
+    // Show content of a file using at most 1 block_size space in memory
     pub fn read_as_file(&self, offset : u32, part : &Ext4Partition, block_size : u32, n : u32) -> u8{
         let mut total_byte = 0u32;
         let mut byte = 0u32;
@@ -595,10 +595,6 @@ impl Inode {
     }
 
     pub fn get_path_recursive(&self, mut n : u32, depth : usize, block_size : u32) -> ([u32;4], u8) {
-        //if depth > 3 {
-            // Max Depth reached : 1
-          //  return Err(1)
-        //}
         // Compute the number of bytes contained
         let address_per_block = (block_size / 4);
         let block_count = address_per_block.pow(depth as u32);
@@ -613,10 +609,6 @@ impl Inode {
                 path[i] = (n / (address_per_block).pow((depth - i - 1) as u32)) as u32;
                 n = n % (address_per_block).pow((depth - i - 1) as u32);
                 i += 1;
-                //if i > 2 {
-                    // Error in recursivity : 2
-                  //  return Err(2);
-                //}
             };
             return (path, depth as u8)
         }
@@ -670,7 +662,6 @@ impl Debug for &Inode {
             print_str(blocks[i].numtoa_str(16, &mut buffer));
             print_str(" , ");
         }
-
         printc(10);
         printc(13);
 

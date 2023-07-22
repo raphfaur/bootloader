@@ -11,6 +11,21 @@ pub fn print_str(str : &str) {
     }
 }
 
+pub fn write(x: u16, y : u16, color : u8) {
+    unsafe {
+        asm!(
+        "pusha",
+        "mov ah, 0x0c",
+        "mov bh, 0x00",
+        "int 0x10",
+        "popa",
+        in("dx") y,
+        in("cx") x,
+        in("al") color
+        )
+    }
+}
+
 pub fn print_slice(str : &[u8]) {
     for char in str{
         if char != &0 {
@@ -68,7 +83,7 @@ pub fn clear() -> () {
         asm!(
         "pusha",
         "mov ah, 0x00",
-        "mov al, 0x03",
+        "mov al, 0x12",
         "int 0x10",
         "popa"
         )
