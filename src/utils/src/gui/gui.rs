@@ -1,9 +1,10 @@
 #![no_std]
 #![no_main]
+
 use core::arch::asm;
 use core::ptr::write_volatile;
-use crate::debug;
 
+use crate::debug;
 
 pub fn print_str(str : &str) {
     for char in str.as_bytes(){
@@ -77,13 +78,25 @@ pub fn print(str : &[u8]) {
     }
 }
 
+pub fn switch_graphic() -> () {
+    unsafe {
+        asm!(
+        "pusha",
+        "mov ah, 0x00",
+        "mov al, 0x12",
+        "int 0x10",
+        "popa"
+        )
+    }
+}
+
 #[inline(never)]
 pub fn clear() -> () {
     unsafe {
         asm!(
         "pusha",
         "mov ah, 0x00",
-        "mov al, 0x12",
+        "mov al, 0x3",
         "int 0x10",
         "popa"
         )
