@@ -9,4 +9,6 @@ pub mod partitions;
 pub mod util;
 pub mod file_system;
 pub mod video_io;
+pub mod graphics;
+pub mod data;
 

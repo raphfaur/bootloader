@@ -12,44 +12,25 @@ use utils::debug;
 use utils::file_system::ext4::{Debug, Ext4Partition,Superblock};
 use utils::gui::gui::{clear, print, print_slice, print_str, printc, wait_input, write};
 use core::str;
+use utils::data::r#abstract::{DataSegment, Disk, SourceTest};
 use utils::disk::disk::AddressPacket;
-use utils::video_io::io::cprint_info;
+use utils::graphics::image::{From, Image, Point};
+
 extern crate rlibc;
 
 #[no_mangle]
 #[inline(never)]
 pub extern "C" fn _start() -> ! {
-    let x_size = 480;
-    let y_size = 400;
     clear();
-    let mut read_add;
-    for j in 0..40000 {
-        let mut address = 0x600;
-        read_add = AddressPacket::new(5, 0x600,51 + j * 5);
-        match read_add.disk_read(0x80) {
-            Ok(_) => {},
-            Err(_) =>write(100,100, 0xF)
-        }
-        for i in 0..512{
-            let next_x = unsafe {
-                read_volatile(address as *const u16 )
-            };
-            address += 2;
-            let next_y = unsafe {
-                read_volatile(address as *const u16 )
-            };
-            address += 2;
-            let color = unsafe {
-                read_volatile(address as *const u8)
-            };
-            address += 1;
-            write(next_x + 320 - x_size / 2,next_y + 240 - y_size / 2, color  );
-        }
+    let source = Disk::new(26112);
+    if let Ok(img) = Image::from_disk(51, 0x600) {
+        img.draw(Point::new(320, 240), source, 0x600);
+
+    } else {
+        print_str("error");
     }
 
-
-
-
+    //debug!(img.x_size());
 
     loop {
 
@@ -58,6 +39,12 @@ pub extern "C" fn _start() -> ! {
 
 #[panic_handler]
 pub fn panic(info : &PanicInfo) -> !{
+    if let Some(s) = info.payload().downcast_ref::<&str>() {
+        print_str(s);
+    } else {
+        print_str("Panic occured");
+    }
+    print_str("Bob");
     loop {
 
     }

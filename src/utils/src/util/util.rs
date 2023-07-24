@@ -6,7 +6,7 @@ macro_rules! debug {
         let mut buffer = [0u8; 20];
         print_str(stringify!($a));
         print_str(" : ");
-        print_str($a.numtoa_str(16, &mut buffer));
+        print_str($a.numtoa_str(10, &mut buffer));
         printc(10);
         printc(13);
     };
