@@ -1,9 +1,6 @@
 use core::mem::transmute;
-
-use crate::debug;
 use crate::disk::disk::AddressPacket;
-use crate::gui::gui::{print_str, printc};
-use numtoa::NumToA;
+
 
 pub struct DataSegment<T, S: DataSource> {
     physical_origin: u32,
